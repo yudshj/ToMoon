@@ -223,7 +223,15 @@ export function apiCallMethod(
     }
   };
 
-  const ignore_list = ["get_config", "reload_clash_config", "restart_clash"];
+  // allow_lan is applied live via PATCH /configs, so a reload (which also
+  // resets the runtime proxy mode) is unnecessary there.
+  const ignore_list = [
+    "get_config",
+    "reload_clash_config",
+    "restart_clash",
+    "allow_lan",
+    "get_ip_address",
+  ];
 
   // 在请求完成后自动触发配置重载
   if (!ignore_list.includes(name)) {
@@ -275,6 +283,17 @@ export class ApiCallBackend {
     return await apiCallMethod("allow_remote_access", {
       allow_remote_access: value,
     });
+  }
+
+  // allow_lan (persisted; apply live with ClashApi.setAllowLan)
+  public static async allowLan(value: boolean) {
+    return await apiCallMethod("allow_lan", { allow_lan: value });
+  }
+
+  // get_ip_address
+  public static async getLanIp(): Promise<string> {
+    const res = await apiCallMethod("get_ip_address", {}, ApiCallMethod.GET);
+    return res?.data?.status_code == 200 ? res.data.ip : "";
   }
 
   // set_dashboard

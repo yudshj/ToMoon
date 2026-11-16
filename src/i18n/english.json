@@ -68,5 +68,8 @@
     "UPDATE": "Update",
     "UPDATING": "Updating…",
     "UPDATE_DONE": "Updated",
-    "UPDATE_FAILED": "Update failed"
+    "UPDATE_FAILED": "Update failed",
+    "ALLOW_LAN": "Allow LAN Connections",
+    "ALLOW_LAN_DESC": "Let other devices on this network use the proxy",
+    "ALLOW_LAN_ADDRESS": "Proxy address for other devices: {{address}}"
 }

@@ -134,6 +134,7 @@ async fn main() -> Result<(), std::io::Error> {
                 web::resource("/allow_remote_access")
                     .route(web::post().to(external_web::allow_remote_access)),
             )
+            .service(web::resource("/allow_lan").route(web::post().to(external_web::allow_lan)))
             // reload_clash_config
             .service(
                 web::resource("/reload_clash_config")

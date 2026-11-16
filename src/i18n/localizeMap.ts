@@ -169,6 +169,9 @@ const I18N_KEYS = [
   "UPDATING",
   "UPDATE_DONE",
   "UPDATE_FAILED",
+  "ALLOW_LAN",
+  "ALLOW_LAN_DESC",
+  "ALLOW_LAN_ADDRESS",
 ] as const;
 
 // 创建常量对象并导出

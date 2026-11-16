@@ -1,5 +1,5 @@
 import { PanelSectionRow, TextField, ButtonItem } from "@decky/ui";
-import { useReducer, useState, FC } from "react";
+import { useEffect, useReducer, useState, FC } from "react";
 import { cleanPadding } from "../style";
 import { SubList } from "../components";
 import { QRCodeCanvas } from "qrcode.react";
@@ -9,13 +9,15 @@ import axios from "axios";
 import { localizationManager, L } from "../i18n";
 
 interface SubProp {
-  Subscriptions: Array<any>;
+  Subscriptions?: Array<any>;
 }
 
 export const Subscriptions: FC<SubProp> = ({ Subscriptions }) => {
   const [text, setText] = useState("");
   const [downloadTips, setDownloadTips] = useState("");
-  const [subscriptions, updateSubscriptions] = useState(Subscriptions);
+  const [subscriptions, updateSubscriptions] = useState<Array<any>>(
+    Subscriptions ?? []
+  );
   const [downlaodBtnDisable, setDownlaodBtnDisable] = useState(false);
   const [updateBtnDisable, setUpdateBtnDisable] = useState(false);
   const [_, forceUpdate] = useReducer((x) => x + 1, 0);
@@ -86,7 +88,7 @@ export const Subscriptions: FC<SubProp> = ({ Subscriptions }) => {
         let name = re.exec(x.path);
         return {
           id: i++,
-          name: name![0],
+          name: name ? name[0] : x.path,
           url: x.url,
         };
       });
@@ -96,14 +98,19 @@ export const Subscriptions: FC<SubProp> = ({ Subscriptions }) => {
     });
   };
 
-  //获取 QR Page
-  axios.get("http://127.0.0.1:55556/get_ip_address").then((r) => {
-    if (r.data.status_code == 200) {
-      setQRPageUrl(`http://${r.data.ip}:55556`);
-    } else {
-      setQRPageUrl("");
-    }
-  });
+  useEffect(() => {
+    // The list passed in from the QAM may be missing (e.g. right after the
+    // plugin reloaded, or when this page is opened without the QAM), so
+    // always load it here.
+    refreshSubs();
+    //获取 QR Page (once; doing this during render loops forever)
+    axios
+      .get("http://127.0.0.1:55556/get_ip_address")
+      .then((r) => {
+        setQRPageUrl(r.data.status_code == 200 ? `http://${r.data.ip}:55556` : "");
+      })
+      .catch(() => setQRPageUrl(""));
+  }, []);
 
   console.log("load Subs page");
 

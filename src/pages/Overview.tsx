@@ -287,6 +287,23 @@ const RunningSections: FC<{ generation: number }> = ({ generation }) => {
   const [mode, setMode] = useState<ClashMode>("rule");
   const [speed, setSpeed] = useState({ up: 0, down: 0 });
   const [totals, setTotals] = useState({ up: 0, down: 0, count: 0, memory: 0 });
+  const [allowLan, setAllowLan] = useState(false);
+  const [lanBusy, setLanBusy] = useState(false);
+  const [lanAddress, setLanAddress] = useState("");
+
+  const loadLan = useCallback(async () => {
+    try {
+      const [cfg, ip] = await Promise.all([
+        ClashApi.getRuntimeConfig(),
+        ApiCallBackend.getLanIp().catch(() => ""),
+      ]);
+      setAllowLan(!!cfg["allow-lan"]);
+      const port = cfg["mixed-port"] || cfg.port || cfg["socks-port"];
+      setLanAddress(ip && port ? `${ip}:${port}` : "");
+    } catch {
+      /* keep previous */
+    }
+  }, []);
 
   const load = useCallback(async () => {
     resetSecret();
@@ -294,6 +311,7 @@ const RunningSections: FC<{ generation: number }> = ({ generation }) => {
       const [v, m] = await Promise.all([ClashApi.version(), ClashApi.getMode()]);
       setVersion(v.version);
       setMode(m);
+      loadLan();
       setReady(true);
       setError(undefined);
     } catch (e) {
@@ -391,6 +409,30 @@ const RunningSections: FC<{ generation: number }> = ({ generation }) => {
             }}
           />
         </PanelSectionRow>
+        <PanelSectionRow>
+          <ToggleField
+            label={t(L.ALLOW_LAN)}
+            description={
+              allowLan && lanAddress
+                ? t(L.ALLOW_LAN_ADDRESS, { address: lanAddress })
+                : t(L.ALLOW_LAN_DESC)
+            }
+            checked={allowLan}
+            disabled={lanBusy}
+            onChange={async (value) => {
+              setLanBusy(true);
+              setAllowLan(value);
+              try {
+                await ApiCallBackend.allowLan(value);
+                await ClashApi.setAllowLan(value);
+              } catch (e) {
+                setError(errText(e));
+              }
+              await loadLan();
+              setLanBusy(false);
+            }}
+          />
+        </PanelSectionRow>
         <Field label={t(L.REALTIME_SPEED)} focusable>
           <span style={{ fontVariantNumeric: "tabular-nums" }}>
             ↑ {formatBytes(speed.up)}/s　↓ {formatBytes(speed.down)}/s
@@ -418,14 +460,6 @@ const RunningSections: FC<{ generation: number }> = ({ generation }) => {
             <div style={{ color: "#d94126" }}>{error}</div>
           </PanelSectionRow>
         )}
-        <PanelSectionRow>
-          <ButtonItem
-            layout="below"
-            onClick={() => Router.Navigate("/tomoon-config/proxies")}
-          >
-            {t(L.PROXY_SETTINGS)}
-          </ButtonItem>
-        </PanelSectionRow>
         <PanelSectionRow>
           <ButtonItem
             layout="below"

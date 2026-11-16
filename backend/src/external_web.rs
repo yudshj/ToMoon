@@ -40,6 +40,11 @@ pub struct AllowRemoteAccessParams {
 }
 
 #[derive(Deserialize)]
+pub struct AllowLanParams {
+    allow_lan: bool,
+}
+
+#[derive(Deserialize)]
 pub struct OverrideDNSParams {
     override_dns: bool,
 }
@@ -101,6 +106,7 @@ pub struct GetConfigResponse {
     override_dns: bool,
     enhanced_mode: EnhancedMode,
     allow_remote_access: bool,
+    allow_lan: bool,
     dashboard: String,
     secret: String,
 }
@@ -265,6 +271,42 @@ pub async fn allow_remote_access(
         status_code: 200,
     };
     Ok(HttpResponse::Ok().json(r))
+}
+
+// allow_lan: persist the setting; the frontend applies it live via PATCH /configs
+pub async fn allow_lan(
+    state: web::Data<AppState>,
+    params: web::Form<AllowLanParams>,
+) -> Result<HttpResponse> {
+    let runtime = state.runtime.lock().unwrap();
+    let runtime_settings;
+    let runtime_state;
+    unsafe {
+        let runtime = runtime.0.as_ref().unwrap();
+        runtime_settings = runtime.settings_clone();
+        runtime_state = runtime.state_clone();
+    }
+    let result = runtime_settings
+        .write()
+        .map_err(|e| e.to_string())
+        .and_then(|mut x| {
+            x.allow_lan = params.allow_lan;
+            runtime_state
+                .write()
+                .map(|mut state| state.dirty = true)
+                .map_err(|e| e.to_string())
+        });
+    if let Err(e) = result {
+        log::error!("Failed while toggle allow_lan: {}", e);
+        return Err(actix_web::Error::from(ClashError {
+            Message: e,
+            ErrorKind: ClashErrorKind::InnerError,
+        }));
+    }
+    Ok(HttpResponse::Ok().json(OverrideDNSResponse {
+        message: "修改成功".to_string(),
+        status_code: 200,
+    }))
 }
 
 pub async fn enhanced_mode(
@@ -465,6 +507,7 @@ pub async fn reload_clash_config(state: web::Data<AppState>) -> Result<HttpRespo
         settings.skip_proxy,
         settings.override_dns,
         settings.allow_remote_access,
+        settings.allow_lan,
         settings.enhanced_mode,
         settings.dashboard.clone(),
     ) {
@@ -530,6 +573,7 @@ pub async fn get_config(state: web::Data<AppState>) -> Result<HttpResponse> {
                 skip_proxy: x.skip_proxy,
                 override_dns: x.override_dns,
                 allow_remote_access: x.allow_remote_access,
+                allow_lan: x.allow_lan,
                 enhanced_mode: x.enhanced_mode,
                 dashboard: x.dashboard.clone(),
                 secret: secret,

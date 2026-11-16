@@ -88,6 +88,7 @@ pub fn set_clash_status(runtime: &ControlRuntime) -> impl Fn(Vec<Primitive>) -> 
                         settings.skip_proxy,
                         settings.override_dns,
                         settings.allow_remote_access,
+                        settings.allow_lan,
                         settings.enhanced_mode,
                         settings.dashboard.clone(),
                         ) {

@@ -257,6 +257,7 @@ impl Clash {
         skip_proxy: bool,
         override_dns: bool,
         allow_remote_access: bool,
+        allow_lan: bool,
         enhanced_mode: EnhancedMode,
         dashboard: String,
     ) -> Result<(), ClashError> {
@@ -327,6 +328,7 @@ impl Clash {
             skip_proxy,
             override_dns,
             allow_remote_access,
+            allow_lan,
             enhanced_mode,
             dashboard,
         ) {
@@ -473,6 +475,7 @@ impl Clash {
         skip_proxy: bool,
         override_dns: bool,
         allow_remote_access: bool,
+        allow_lan: bool,
         enhanced_mode: EnhancedMode,
         dashboard: String,
     ) -> Result<(), Box<dyn error::Error>> {
@@ -490,6 +493,15 @@ impl Clash {
         } else {
             "127.0.0.1"
         };
+
+        // 局域网连接：允许其他设备使用代理端口
+        yaml.insert(Value::String("allow-lan".into()), Value::Bool(allow_lan));
+        if allow_lan {
+            yaml.insert(
+                Value::String("bind-address".into()),
+                Value::String("*".into()),
+            );
+        }
 
         //修改 WebUI
         match yaml.get_mut("external-controller") {

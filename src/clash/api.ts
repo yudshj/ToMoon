@@ -59,6 +59,15 @@ export interface ClashProvider {
   updatedAt?: string;
 }
 
+export interface RuntimeConfig {
+  mode: string;
+  "allow-lan": boolean;
+  "bind-address"?: string;
+  port?: number;
+  "socks-port"?: number;
+  "mixed-port"?: number;
+}
+
 let secretCache: string | undefined;
 
 async function getSecret(): Promise<string> {
@@ -147,6 +156,17 @@ export const ClashApi = {
   getMode: async () =>
     ((await request<{ mode: string }>("/configs")).mode || "rule")
       .toLowerCase() as ClashMode,
+
+  getRuntimeConfig: () => request<RuntimeConfig>("/configs"),
+
+  /** Apply allow-lan to the running core (listeners are rebuilt). */
+  setAllowLan: (allow: boolean) =>
+    request<void>("/configs", {
+      method: "PATCH",
+      body: JSON.stringify(
+        allow ? { "allow-lan": true, "bind-address": "*" } : { "allow-lan": false }
+      ),
+    }),
 
   setMode: (mode: ClashMode) =>
     request<void>("/configs", {

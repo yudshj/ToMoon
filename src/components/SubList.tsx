@@ -11,7 +11,7 @@ interface appProp {
 export const SubList: FC<appProp> = ({ Subscriptions, UpdateSub, Refresh }) => {
   return (
     <div>
-      {Subscriptions.map((x) => {
+      {(Subscriptions || []).map((x) => {
         return (
           <div>
             <ButtonItem

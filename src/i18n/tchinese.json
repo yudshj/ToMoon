@@ -35,5 +35,8 @@
     "UPDATE": "更新",
     "UPDATING": "更新中…",
     "UPDATE_DONE": "已更新",
-    "UPDATE_FAILED": "更新失敗"
+    "UPDATE_FAILED": "更新失敗",
+    "ALLOW_LAN": "允許區域網路連線",
+    "ALLOW_LAN_DESC": "允許同一網路中的其他裝置使用此代理",
+    "ALLOW_LAN_ADDRESS": "其他裝置填寫代理位址：{{address}}"
 }

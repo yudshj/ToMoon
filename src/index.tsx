@@ -76,14 +76,14 @@ const Content: FC<{}> = ({}) => {
         let name = re.exec(x.path);
         return {
           id: i++,
-          name: name![0],
+          name: name ? name[0] : x.path,
           url: x.url,
         };
       });
       let items = x.map((x) => {
         let name = re.exec(x.path);
         return {
-          label: name![0],
+          label: name ? name[0] : x.path,
           data: x.path,
         };
       });

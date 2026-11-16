@@ -68,5 +68,8 @@
     "UPDATE": "更新",
     "UPDATING": "更新中…",
     "UPDATE_DONE": "已更新",
-    "UPDATE_FAILED": "更新失败"
+    "UPDATE_FAILED": "更新失败",
+    "ALLOW_LAN": "允许局域网连接",
+    "ALLOW_LAN_DESC": "允许同一网络中的其他设备使用此代理",
+    "ALLOW_LAN_ADDRESS": "其他设备填写代理地址：{{address}}"
 }

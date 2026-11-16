@@ -21,6 +21,9 @@ pub struct Settings {
     pub subscriptions: Vec<Subscription>,
     #[serde(default = "default_allow_remote_access")]
     pub allow_remote_access: bool,
+    /// Let other devices on the LAN use the proxy ports (`allow-lan`).
+    #[serde(default = "default_allow_lan")]
+    pub allow_lan: bool,
     #[serde(default = "default_dashboard")]
     pub dashboard: String,
     #[serde(default = "default_secret")]
@@ -40,6 +43,10 @@ fn default_override_dns() -> bool {
 }
 
 fn default_allow_remote_access() -> bool {
+    false
+}
+
+fn default_allow_lan() -> bool {
     false
 }
 
@@ -156,6 +163,7 @@ impl Default for Settings {
             current_sub: default_profile.to_string_lossy().to_string(),
             subscriptions: Vec::new(),
             allow_remote_access: default_allow_remote_access(),
+            allow_lan: default_allow_lan(),
             dashboard: default_dashboard(),
             secret: default_secret(),
         }
