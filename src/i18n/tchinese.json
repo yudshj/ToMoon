@@ -1,1 +1,27 @@
-{}
+{
+    "OVERVIEW": "概覽",
+    "PROXIES": "代理",
+    "CONNECTIONS": "連線",
+    "PROXY_SETTINGS": "代理與節點",
+    "CLASH_NOT_RUNNING": "Clash 未執行，請先在快速選單中啟用。",
+    "RETRY": "重試",
+    "PROXY_MODE": "代理模式",
+    "MODE_RULE": "規則",
+    "MODE_GLOBAL": "全域",
+    "MODE_DIRECT": "直連",
+    "CORE_VERSION": "核心版本",
+    "REALTIME_SPEED": "即時速度",
+    "TOTAL_TRAFFIC": "總流量",
+    "ACTIVE_CONNECTIONS": "使用中連線",
+    "CLOSE_ALL_CONNECTIONS": "中斷所有連線",
+    "CLOSE_CONNECTION": "中斷",
+    "NO_CONNECTIONS": "暫無連線",
+    "TEST_LATENCY": "測速",
+    "TESTING": "測速中…",
+    "LATENCY_TIMEOUT": "逾時",
+    "SWITCH_NODE": "切換",
+    "AUTO_SELECTED_GROUP": "由此群組自動選擇",
+    "SORT_BY_LATENCY": "依延遲排序",
+    "OPEN_WEB_DASHBOARD": "開啟網頁面板",
+    "OPEN_WEB_DASHBOARD_DESC": "在 Steam 瀏覽器中開啟完整面板（建議使用觸控）"
+}

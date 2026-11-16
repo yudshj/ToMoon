@@ -17,7 +17,8 @@ import { routerHook } from "@decky/api";
 import { FC, useEffect, useState } from "react";
 import { GiEgyptianBird } from "react-icons/gi";
 
-import { Subscriptions, About, Debug } from "./pages";
+import { Subscriptions, About, Debug, Overview, Proxies, Connections } from "./pages";
+import { QuickProxy } from "./components/QuickProxy";
 
 import * as backend from "./backend/backend";
 
@@ -239,6 +240,9 @@ const Content: FC<{}> = ({}) => {
             disabled={isSelectionDisabled}
           />
         </PanelSectionRow>
+        {clashState && (
+          <QuickProxy refreshToken={SelectionTips} />
+        )}
         <PanelSectionRow>
           <DropdownItem
             // disabled={optionDropdownDisabled}
@@ -422,6 +426,21 @@ const DeckyPluginRouterTest: FC = () => {
       title="To Moon"
       showTitle
       pages={[
+        {
+          title: localizationManager.getString(L.OVERVIEW),
+          content: <Overview />,
+          route: "/tomoon-config/overview",
+        },
+        {
+          title: localizationManager.getString(L.PROXIES),
+          content: <Proxies />,
+          route: "/tomoon-config/proxies",
+        },
+        {
+          title: localizationManager.getString(L.CONNECTIONS),
+          content: <Connections />,
+          route: "/tomoon-config/connections",
+        },
         {
           title: localizationManager.getString(L.SUBSCRIPTIONS),
           content: <Subscriptions Subscriptions={subs} />,

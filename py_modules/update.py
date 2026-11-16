@@ -67,13 +67,14 @@ def update_latest():
 def download_latest_build():
     gcontext = ssl.SSLContext()
 
-    # response = urllib.request.urlopen(API_URL, context=gcontext)
-    # json_data = json.load(response)
+    response = urllib.request.urlopen(API_URL, context=gcontext)
+    json_data = json.load(response)
 
-    # download_url = json_data.get("assets")[0].get("browser_download_url")
-
-    # 固定使用镜像站下载地址
-    download_url = "https://moon.ohmydeck.net"
+    download_url = next(
+        asset.get("browser_download_url")
+        for asset in json_data.get("assets", [])
+        if asset.get("name", "").endswith(".zip")
+    )
 
     logger.info(download_url)
 
