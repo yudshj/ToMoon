@@ -90,4 +90,6 @@ jobs:
           files: /tmp/artifacts/tomoon-*.zip
           name: Release ${{ github.ref_name }}
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref, 'pre') }}
+          # v1.2.3 is a release; v1.2.3-rc.1 / -alpha.1 / -beta.1 are pre-releases
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
