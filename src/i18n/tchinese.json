@@ -23,5 +23,17 @@
     "AUTO_SELECTED_GROUP": "由此群組自動選擇",
     "SORT_BY_LATENCY": "依延遲排序",
     "OPEN_WEB_DASHBOARD": "開啟網頁面板",
-    "OPEN_WEB_DASHBOARD_DESC": "在 Steam 瀏覽器中開啟完整面板（建議使用觸控）"
+    "OPEN_WEB_DASHBOARD_DESC": "在 Steam 瀏覽器中開啟完整面板（建議使用觸控）",
+    "CLASH_STOPPED_HINT": "Clash 未啟用，開啟後可管理代理與節點。",
+    "RESOURCES": "資源更新",
+    "GEO_DATABASE": "GeoIP / GeoSite 資料庫",
+    "GEO_DATABASE_DESC": "從 geox-url 重新下載 Geo 資料檔並重新載入",
+    "RULE_PROVIDERS": "規則集",
+    "PROXY_PROVIDERS": "代理集合",
+    "PROVIDER_SUMMARY": "{{count}} 個 · 上次更新 {{time}}",
+    "NONE_CONFIGURED": "目前設定中沒有",
+    "UPDATE": "更新",
+    "UPDATING": "更新中…",
+    "UPDATE_DONE": "已更新",
+    "UPDATE_FAILED": "更新失敗"
 }

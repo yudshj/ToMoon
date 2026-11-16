@@ -49,6 +49,16 @@ export interface ConnectionsSnapshot {
   memory?: number;
 }
 
+export interface ClashProvider {
+  name: string;
+  type: string;
+  vehicleType: string;
+  behavior?: string;
+  ruleCount?: number;
+  proxies?: unknown[];
+  updatedAt?: string;
+}
+
 let secretCache: string | undefined;
 
 async function getSecret(): Promise<string> {
@@ -151,6 +161,30 @@ export const ClashApi = {
 
   closeAllConnections: () =>
     request<void>("/connections", { method: "DELETE" }),
+
+  /** Re-download GeoIP / GeoSite / ASN databases from geox-url and reload. */
+  updateGeo: () => request<void>("/configs/geo", { method: "POST" }, 180000),
+
+  getRuleProviders: async () =>
+    Object.values(
+      (await request<{ providers: Record<string, ClashProvider> }>(
+        "/providers/rules"
+      )).providers || {}
+    ),
+
+  updateRuleProvider: (name: string) =>
+    request<void>(`/providers/rules/${enc(name)}`, { method: "PUT" }, 120000),
+
+  /** Proxy providers backed by a URL or file (skips the built-in "default"). */
+  getProxyProviders: async () =>
+    Object.values(
+      (await request<{ providers: Record<string, ClashProvider> }>(
+        "/providers/proxies"
+      )).providers || {}
+    ).filter((p) => p.vehicleType !== "Compatible"),
+
+  updateProxyProvider: (name: string) =>
+    request<void>(`/providers/proxies/${enc(name)}`, { method: "PUT" }, 120000),
 
   /**
    * Subscribe to the /traffic stream (one JSON object per second).
