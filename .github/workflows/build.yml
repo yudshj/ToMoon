@@ -27,7 +27,8 @@ jobs:
           mkdir tmp && cd tmp
           mkdir core && cd core
           # Mihomo (Clash Meta)
-          LATEST_URL=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep "browser_download_url.*linux-amd64-v.*gz\"" | cut -d '"' -f 4)
+          LATEST_URL=$(curl -fsSL -H "Authorization: Bearer ${{ github.token }}" https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | jq -r '.tag_name as $t | .assets[] | select(.name == "mihomo-linux-amd64-\($t).gz") | .browser_download_url')
+          test -n "$LATEST_URL"
           wget -O clash.gz $LATEST_URL
           gzip -d clash.gz
 
