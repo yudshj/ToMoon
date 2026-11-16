@@ -41,6 +41,16 @@ class Plugin:
         utils.remove_font_config()
         pass
 
+    # Called by Decky when the plugin is removed (also before an update):
+    # stop the mihomo service and drop its unit so nothing is left behind.
+    async def _uninstall(self):
+        logger.info("Remove tomoon-mihomo.service.")
+        subprocess.run(["systemctl", "stop", "tomoon-mihomo.service"], check=False)
+        unit = "/etc/systemd/system/tomoon-mihomo.service"
+        if os.path.exists(unit):
+            os.remove(unit)
+            subprocess.run(["systemctl", "daemon-reload"], check=False)
+
     async def get_settings(self):
         return self.settings.getSetting(CONFIG_KEY)
 

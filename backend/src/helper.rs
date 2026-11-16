@@ -4,7 +4,6 @@ use regex::Regex;
 
 use std::fs;
 
-use sysinfo::{ProcessExt, System, SystemExt};
 
 pub fn reset_system_network() -> Result<(), Box<dyn std::error::Error>> {
     //读入程序的 DNS
@@ -60,15 +59,7 @@ pub fn check_yaml(str: &String) -> bool {
 }
 
 pub fn is_clash_running() -> bool {
-    //关闭 systemd-resolved
-    let mut sys = System::new_all();
-    sys.refresh_all();
-    for (_, process) in sys.processes() {
-        if process.name() == "clash" {
-            return true;
-        }
-    }
-    return false;
+    crate::control::core_service_active()
 }
 
 pub fn get_file_path(url: String) -> Option<String> {

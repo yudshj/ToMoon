@@ -615,8 +615,11 @@ pub fn create_debug_log(runtime: &ControlRuntime) -> impl Fn(Vec<Primitive>) -> 
                 format!("can not get Tomoon log, error message: {} \n", e)
             }
         };
-        let clash_log = match fs::read_to_string("/tmp/tomoon.clash.log") {
-            Ok(x) => x,
+        let clash_log = match std::process::Command::new("journalctl")
+            .args(["-u", crate::control::CORE_SERVICE, "-n", "300", "--no-pager"])
+            .output()
+        {
+            Ok(x) => String::from_utf8_lossy(&x.stdout).into_owned(),
             Err(e) => {
                 format!("can not get Clash log, error message: {} \n", e)
             }

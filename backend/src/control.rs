@@ -1,6 +1,7 @@
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::os::unix::fs::MetadataExt;
+use std::process::Command;
 use std::sync::{Arc, RwLock};
 
 use std::time::Duration;
@@ -195,10 +196,65 @@ fn get_decky_data_dir() -> std::io::Result<std::path::PathBuf> {
     Ok(data_dir)
 }
 
+/// mihomo runs as a system service owned by the Decky user instead of a
+/// root child process of the backend: it survives backend restarts, is
+/// restarted on failure, logs to journald and only gets the capabilities TUN
+/// and process lookup need.
+pub const CORE_SERVICE: &str = "tomoon-mihomo.service";
+const CORE_UNIT_PATH: &str = "/etc/systemd/system/tomoon-mihomo.service";
+
+fn systemctl(args: &[&str]) -> std::io::Result<std::process::Output> {
+    Command::new("systemctl").args(args).output()
+}
+
+pub fn core_service_active() -> bool {
+    systemctl(&["is-active", "--quiet", CORE_SERVICE])
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// uid/gid owning the Decky data directory (the Decky user, normally deck).
+fn decky_user_ids() -> (u32, u32) {
+    get_decky_data_dir()
+        .ok()
+        .and_then(|d| fs::metadata(d.join("..")).ok())
+        .map(|m| (m.uid(), m.gid()))
+        .filter(|(uid, _)| *uid != 0)
+        .unwrap_or((1000, 1000))
+}
+
+fn render_core_unit(binary: &Path, data_dir: &Path, config: &Path, uid: u32, gid: u32) -> String {
+    format!(
+        "# Managed by the ToMoon Decky plugin; rewritten on every start.
+[Unit]
+Description=ToMoon mihomo core
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={uid}
+Group={gid}
+WorkingDirectory={data}
+ExecStart=\"{bin}\" -d \"{data}\" -f \"{config}\"
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+NoNewPrivileges=yes
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=65535
+",
+        uid = uid,
+        gid = gid,
+        bin = binary.display(),
+        data = data_dir.display(),
+        config = config.display(),
+    )
+}
+
 pub struct Clash {
     pub path: std::path::PathBuf,
     pub config: std::path::PathBuf,
-    pub instence: Option<Child>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -245,7 +301,6 @@ impl Default for Clash {
             config: get_current_working_dir()
                 .unwrap()
                 .join("bin/core/config.yaml"),
-            instence: None,
         }
     }
 }
@@ -341,49 +396,84 @@ impl Clash {
             }
         }
 
-        //log::info!("Pre-setting network");
-        //TODO: 未修改的 unwarp
         let run_config = self.get_running_config().unwrap();
-        let outputs = fs::File::create("/tmp/tomoon.clash.log").unwrap();
-        let errors = outputs.try_clone().unwrap();
+        log::info!("Starting Clash via {}...", CORE_SERVICE);
+        if let Err(e) = self.start_service(&decky_data_dir, &run_config) {
+            log::error!("run Clash failed: {}", e);
+            return Err(ClashError {
+                Message: e.to_string(),
+                ErrorKind: ClashErrorKind::InnerError,
+            });
+        }
+        Ok(())
+    }
 
-        log::info!("Starting Clash...");
+    /// Install/refresh the unit, hand the data dir to the Decky user and
+    /// (re)start the service.
+    fn start_service(&self, data_dir: &Path, run_config: &Path) -> Result<(), Box<dyn error::Error>> {
+        let (uid, gid) = decky_user_ids();
 
-        let clash = Command::new(self.path.clone())
-            .arg("-d")
-            .arg(decky_data_dir)
-            .arg("-f")
-            .arg(run_config)
-            .stdout(outputs)
-            .stderr(errors)
-            .spawn();
-        let clash: Result<Child, ClashError> = match clash {
-            Ok(x) => Ok(x),
-            Err(e) => {
-                log::error!("run Clash failed: {}", e);
-                //TODO: 开启 Clash 的错误处理
-                return Err(ClashError::new());
+        // Files copied/written by the root backend must stay usable by the
+        // core (cache.db, geo updates, provider downloads).
+        let chown = Command::new("chown")
+            .arg("-R")
+            .arg(format!("{}:{}", uid, gid))
+            .arg(data_dir)
+            .status()?;
+        if !chown.success() {
+            log::warn!("chown {} failed: {}", data_dir.display(), chown);
+        }
+
+        let unit = render_core_unit(&self.path, data_dir, run_config, uid, gid);
+        if fs::read_to_string(CORE_UNIT_PATH).ok().as_deref() != Some(unit.as_str()) {
+            fs::write(CORE_UNIT_PATH, &unit)?;
+            let out = systemctl(&["daemon-reload"])?;
+            if !out.status.success() {
+                return Err(format!(
+                    "systemctl daemon-reload: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                )
+                .into());
             }
-        };
-        self.instence = Some(clash.unwrap());
+            log::info!("Installed {}", CORE_UNIT_PATH);
+        }
+
+        // A core left over from the old child-process launcher would hold
+        // the ports; it is not managed by the service, so stop it.
+        if !core_service_active() {
+            let _ = Command::new("pkill").args(["-x", "clash"]).status();
+        }
+
+        let out = systemctl(&["restart", CORE_SERVICE])?;
+        if !out.status.success() {
+            return Err(format!(
+                "systemctl restart {}: {}",
+                CORE_SERVICE,
+                String::from_utf8_lossy(&out.stderr)
+            )
+            .into());
+        }
+
+        // Type=simple returns once forked; make sure it did not die at once
+        // (e.g. a broken config).
+        thread::sleep(Duration::from_millis(800));
+        if !core_service_active() {
+            return Err(format!("{} exited right after start, see journalctl -u {}", CORE_SERVICE, CORE_SERVICE).into());
+        }
         Ok(())
     }
 
     pub fn stop(&mut self) -> Result<(), Box<dyn error::Error>> {
-        let instance = self.instence.as_mut();
-        match instance {
-            Some(x) => {
-                x.kill()?;
-                x.wait()?;
-
-                //直接重置网络
-                helper::reset_system_network()?;
-            }
-            None => {
-                //Not launch Clash yet...
-                log::error!("Error occurred while disabling Clash: Not launch Clash yet");
-            }
-        };
+        let out = systemctl(&["stop", CORE_SERVICE])?;
+        if !out.status.success() {
+            log::error!(
+                "systemctl stop {}: {}",
+                CORE_SERVICE,
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+        //直接重置网络
+        helper::reset_system_network()?;
         Ok(())
     }
 
@@ -732,5 +822,28 @@ impl Clash {
             }
             None => Ok("".to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod core_unit_tests {
+    use super::*;
+
+    #[test]
+    fn unit_runs_as_user_with_network_caps() {
+        let unit = render_core_unit(
+            Path::new("/home/deck/homebrew/plugins/tomoon/bin/core/clash"),
+            Path::new("/home/deck/homebrew/data/tomoon"),
+            Path::new("/home/deck/homebrew/data/tomoon/running_config.yaml"),
+            1000,
+            1000,
+        );
+        assert!(unit.contains("User=1000\nGroup=1000\n"));
+        assert!(unit.contains(
+            "ExecStart=\"/home/deck/homebrew/plugins/tomoon/bin/core/clash\" -d \"/home/deck/homebrew/data/tomoon\" -f \"/home/deck/homebrew/data/tomoon/running_config.yaml\"\n"
+        ));
+        assert!(unit.contains("AmbientCapabilities=CAP_NET_ADMIN "));
+        assert!(unit.contains("NoNewPrivileges=yes"));
+        assert!(!unit.contains("[Install]"), "start/stop stays with the plugin toggle");
     }
 }
