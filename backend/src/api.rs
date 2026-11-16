@@ -257,7 +257,7 @@ pub fn download_sub(runtime: &ControlRuntime) -> impl Fn(Vec<Primitive>) -> Vec<
                             }
                             // 是一个链接
                         } else {
-                            match minreq::get(url.clone())
+                            match helper::http_get(&url)
                                 .with_header(
                                     "User-Agent",
                                     format!("ToMoonClash/{}", env!("CARGO_PKG_VERSION")),
@@ -518,7 +518,7 @@ pub fn update_subs(runtime: &ControlRuntime) -> impl Fn(Vec<Primitive>) -> Vec<P
                             continue;
                         }
                         thread::spawn(move || {
-                            match minreq::get(i.url.clone())
+                            match helper::http_get(&i.url)
                                 .with_header(
                                     "User-Agent",
                                     format!(

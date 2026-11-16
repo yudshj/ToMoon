@@ -689,7 +689,7 @@ pub async fn download_sub(
                 base_url, target, encoded_url, encoded_config
             );
         }
-        match minreq::get(url.clone())
+        match helper::http_get(&url)
             .with_header(
                 "User-Agent",
                 format!(
