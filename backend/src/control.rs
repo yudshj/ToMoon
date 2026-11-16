@@ -193,7 +193,8 @@ fn get_current_working_dir() -> std::io::Result<std::path::PathBuf> {
 
 fn get_decky_data_dir() -> std::io::Result<std::path::PathBuf> {
     let data_dir = get_current_working_dir().unwrap().join("../../data/tomoon");
-    Ok(data_dir)
+    // Resolve `..`: systemd rejects non-normalized paths in unit files.
+    Ok(fs::canonicalize(&data_dir).unwrap_or(data_dir))
 }
 
 /// mihomo runs as a system service owned by the Decky user instead of a
@@ -412,6 +413,13 @@ impl Clash {
     /// (re)start the service.
     fn start_service(&self, data_dir: &Path, run_config: &Path) -> Result<(), Box<dyn error::Error>> {
         let (uid, gid) = decky_user_ids();
+        let data_dir = &fs::canonicalize(data_dir)?;
+        let run_config = &data_dir.join(
+            run_config
+                .file_name()
+                .ok_or("running config has no file name")?,
+        );
+        let binary = fs::canonicalize(&self.path)?;
 
         // Files copied/written by the root backend must stay usable by the
         // core (cache.db, geo updates, provider downloads).
@@ -424,7 +432,7 @@ impl Clash {
             log::warn!("chown {} failed: {}", data_dir.display(), chown);
         }
 
-        let unit = render_core_unit(&self.path, data_dir, run_config, uid, gid);
+        let unit = render_core_unit(&binary, data_dir, run_config, uid, gid);
         if fs::read_to_string(CORE_UNIT_PATH).ok().as_deref() != Some(unit.as_str()) {
             fs::write(CORE_UNIT_PATH, &unit)?;
             let out = systemctl(&["daemon-reload"])?;
@@ -487,6 +495,16 @@ impl Clash {
         Ok(run_config)
     }
 
+    /// Add the controller secret of the running config, if any.
+    fn authorized(&self, request: minreq::Request) -> minreq::Request {
+        match self.get_running_secret() {
+            Ok(secret) if !secret.is_empty() => {
+                request.with_header("Authorization", format!("Bearer {}", secret))
+            }
+            _ => request,
+        }
+    }
+
     pub async fn reload_config(&self) -> Result<(), ClashError> {
         let run_config = self.get_running_config().unwrap();
         log::info!("Reloading Clash config, config: {}", run_config.display());
@@ -499,7 +517,8 @@ impl Clash {
 
         let body_str = serde_json::to_string(&body).unwrap();
 
-        let res = match minreq::put(url)
+        let res = match self
+            .authorized(minreq::put(url))
             .with_header("Content-Type", "application/json")
             .with_body(body_str)
             .send()
@@ -535,7 +554,8 @@ impl Clash {
         });
         let body_str = serde_json::to_string(&body).unwrap();
 
-        let res = match minreq::post(url)
+        let res = match self
+            .authorized(minreq::post(url))
             .with_header("Content-Type", "application/json")
             .with_body(body_str)
             .send()
@@ -845,5 +865,6 @@ mod core_unit_tests {
         assert!(unit.contains("AmbientCapabilities=CAP_NET_ADMIN "));
         assert!(unit.contains("NoNewPrivileges=yes"));
         assert!(!unit.contains("[Install]"), "start/stop stays with the plugin toggle");
+        assert!(!unit.contains("/../") && !unit.contains("/./"), "systemd needs normalized paths");
     }
 }
