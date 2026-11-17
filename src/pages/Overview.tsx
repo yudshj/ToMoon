@@ -527,7 +527,8 @@ const RunningSections: FC<{ generation: number }> = ({ generation }) => {
           onActivate={() => Router.Navigate("/tomoon-config/connections")}
           onClick={() => Router.Navigate("/tomoon-config/connections")}
         >
-          {totals.count}
+          {/* Field drops a bare numeric 0 child; render the count as text. */}
+          {String(totals.count)}
         </Field>
         <Field label={t(L.CORE_VERSION)} focusable>
           {version}

@@ -51,6 +51,9 @@ build.*.sh
 
 .vscode
 
+# Local UI test tooling and artifacts (may contain subscription credentials)
+/.ui-test/
+
 release
 
 /clash

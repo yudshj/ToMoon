@@ -7,6 +7,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import * as backend from "../backend/backend";
 import axios from "axios";
 import { localizationManager, L } from "../i18n";
+import { maskSubscriptionUrl } from "../clash/maskUrl";
 
 interface SubProp {
   Subscriptions?: Array<any>;
@@ -148,7 +149,7 @@ export const Subscriptions: FC<SubProp> = ({ Subscriptions }) => {
           onClick={() => {
             setDownlaodBtnDisable(true);
             backend.resolve(backend.downloadSub(text), () => {
-              console.log("download sub: " + text);
+              console.log("download sub: " + maskSubscriptionUrl(text));
             });
             checkStatusHandler = setInterval(refreshDownloadStatus, 500);
           }}
