@@ -36,7 +36,7 @@
     "PROXIES": "代理",
     "CONNECTIONS": "连接",
     "PROXY_SETTINGS": "代理与节点",
-    "CLASH_NOT_RUNNING": "Clash 未运行，请先在快捷菜单中启用。",
+    "CLASH_NOT_RUNNING": "mihomo 服务未运行，请先在「概览 > 系统服务」中安装。",
     "RETRY": "重试",
     "PROXY_MODE": "代理模式",
     "MODE_RULE": "规则",
@@ -57,7 +57,7 @@
     "SORT_BY_LATENCY": "按延迟排序",
     "OPEN_WEB_DASHBOARD": "打开网页面板",
     "OPEN_WEB_DASHBOARD_DESC": "在 Steam 浏览器中打开完整面板（建议用触屏操作）",
-    "CLASH_STOPPED_HINT": "Clash 未启用，开启后可管理代理与节点。",
+    "CLASH_STOPPED_HINT": "安装系统服务后即可管理代理与节点。",
     "RESOURCES": "资源更新",
     "GEO_DATABASE": "GeoIP / GeoSite 数据库",
     "GEO_DATABASE_DESC": "从 geox-url 重新下载 Geo 数据文件并重载",
@@ -71,5 +71,14 @@
     "UPDATE_FAILED": "更新失败",
     "ALLOW_LAN": "允许局域网连接",
     "ALLOW_LAN_DESC": "允许同一网络中的其他设备使用此代理",
-    "ALLOW_LAN_ADDRESS": "其他设备填写代理地址：{{address}}"
+    "ALLOW_LAN_ADDRESS": "其他设备填写代理地址：{{address}}",
+    "SYSTEM_SERVICE": "系统服务",
+    "SERVICE_NOT_INSTALLED": "未安装",
+    "SERVICE_RUNNING": "运行中 · 开机自启",
+    "SERVICE_STOPPED": "已安装，但未运行",
+    "SERVICE_DESC": "常驻运行 mihomo；即使不开 TUN，浏览器等程序也可以使用 {{address}}",
+    "INSTALL_SERVICE": "安装",
+    "UNINSTALL_SERVICE": "卸载",
+    "TUN_DESC": "全局透明代理（TUN），接管 Steam 和游戏等所有流量",
+    "INSTALL_SERVICE_FIRST": "请先安装系统服务"
 }

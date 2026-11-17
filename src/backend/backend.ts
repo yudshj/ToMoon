@@ -231,6 +231,9 @@ export function apiCallMethod(
     "restart_clash",
     "allow_lan",
     "get_ip_address",
+    "service_status",
+    "install_service",
+    "uninstall_service",
   ];
 
   // 在请求完成后自动触发配置重载
@@ -288,6 +291,23 @@ export class ApiCallBackend {
   // allow_lan (persisted; apply live with ClashApi.setAllowLan)
   public static async allowLan(value: boolean) {
     return await apiCallMethod("allow_lan", { allow_lan: value });
+  }
+
+  // always-on core service
+  public static async serviceStatus(): Promise<{ installed: boolean; active: boolean }> {
+    const res = await apiCallMethod("service_status", {}, ApiCallMethod.GET);
+    return { installed: !!res?.data?.installed, active: !!res?.data?.active };
+  }
+
+  /** Resolves to an error message, or "" on success. */
+  public static async installService(): Promise<string> {
+    const res = await apiCallMethod("install_service", {});
+    return res?.data?.status_code == 200 ? "" : res?.data?.message || "error";
+  }
+
+  public static async uninstallService(): Promise<string> {
+    const res = await apiCallMethod("uninstall_service", {});
+    return res?.data?.status_code == 200 ? "" : res?.data?.message || "error";
   }
 
   // get_ip_address

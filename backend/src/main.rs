@@ -38,7 +38,7 @@ async fn main() -> Result<(), std::io::Error> {
     .unwrap();
 
     log::info!("Starting back-end ({} v{})", api::NAME, api::VERSION);
-    log::info!("{}", std::env::current_dir().unwrap().to_str().unwrap());
+    log::info!("{}", helper::plugin_dir().display());
     println!("Starting back-end ({} v{})", api::NAME, api::VERSION);
 
     let runtime: ControlRuntime = control::ControlRuntime::new();
@@ -135,6 +135,9 @@ async fn main() -> Result<(), std::io::Error> {
                     .route(web::post().to(external_web::allow_remote_access)),
             )
             .service(web::resource("/allow_lan").route(web::post().to(external_web::allow_lan)))
+            .service(web::resource("/service_status").route(web::get().to(external_web::service_status)))
+            .service(web::resource("/install_service").route(web::post().to(external_web::install_service)))
+            .service(web::resource("/uninstall_service").route(web::post().to(external_web::uninstall_service)))
             // reload_clash_config
             .service(
                 web::resource("/reload_clash_config")

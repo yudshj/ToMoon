@@ -30,26 +30,31 @@ class Plugin:
         os.system("chmod -R a+x " + decky.DECKY_PLUGIN_DIR)
         # 切换到工作目录
         os.chdir(decky.DECKY_PLUGIN_DIR)
-        self.backend_proc = subprocess.Popen([decky.DECKY_PLUGIN_DIR + "/bin/tomoon"])
+        backend = decky.DECKY_PLUGIN_DIR + "/bin/tomoon"
+        # A backend left over from a previous load (Decky deletes and
+        # re-extracts the plugin dir on update without always stopping it)
+        # keeps ports 55555/55556 and a dangling cwd; stop it first.
+        subprocess.run(["pkill", "-x", "-f", backend], check=False)
+        subprocess.run(
+            ["pkill", "-f", "^" + decky.DECKY_PLUGIN_DIR + "/bin/subconverter"],
+            check=False,
+        )
+        await asyncio.sleep(0.5)
+        self.backend_proc = subprocess.Popen([backend])
         while True:
             await asyncio.sleep(1)
 
     # Function called first during the unload process, utilize this to handle your plugin being removed
     async def _unload(self):
         logger.info("Stop Tomoon.")
-        self.backend_proc.kill()
+        if self.backend_proc:
+            self.backend_proc.terminate()
+            try:
+                self.backend_proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.backend_proc.kill()
         utils.remove_font_config()
         pass
-
-    # Called by Decky when the plugin is removed (also before an update):
-    # stop the mihomo service and drop its unit so nothing is left behind.
-    async def _uninstall(self):
-        logger.info("Remove tomoon-mihomo.service.")
-        subprocess.run(["systemctl", "stop", "tomoon-mihomo.service"], check=False)
-        unit = "/etc/systemd/system/tomoon-mihomo.service"
-        if os.path.exists(unit):
-            os.remove(unit)
-            subprocess.run(["systemctl", "daemon-reload"], check=False)
 
     async def get_settings(self):
         return self.settings.getSetting(CONFIG_KEY)

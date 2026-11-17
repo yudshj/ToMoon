@@ -62,16 +62,25 @@ const TaskStatus: FC<{ state?: TaskState }> = ({ state }) => {
   );
 };
 
-/** Clash on/off switch plus subscription picker; shared state lives in the backend. */
+type ServiceState = { installed: boolean; active: boolean };
+
+/**
+ * System service (install/uninstall, always-on core), the TUN switch and the
+ * subscription picker. `onRunningChange` reports whether the core is up.
+ */
 const ServiceSection: FC<{ onRunningChange: (running: boolean) => void }> = ({
   onRunningChange,
 }) => {
+  const [service, setService] = useState<ServiceState | null>(null);
+  const [serviceError, setServiceError] = useState("");
+  const [proxyAddress, setProxyAddress] = useState("");
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tip, setTip] = useState(t(L.ENABLE_CLASH_DESC));
+  const [tip, setTip] = useState(t(L.TUN_DESC));
   const [subs, setSubs] = useState<{ label: string; data: string }[]>([]);
   const [currentSub, setCurrentSub] = useState("");
   const pollRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const busyRef = useRef(false);
 
   const loadSubs = useCallback(async () => {
     try {
@@ -88,55 +97,126 @@ const ServiceSection: FC<{ onRunningChange: (running: boolean) => void }> = ({
     }
   }, []);
 
+  const loadService = useCallback(async () => {
+    try {
+      const st = await ApiCallBackend.serviceStatus();
+      setService(st);
+      onRunningChange(st.active);
+      if (st.active) {
+        resetSecret();
+        const cfg = await ClashApi.getRuntimeConfig().catch(() => null);
+        const port = cfg && (cfg["mixed-port"] || cfg.port);
+        setProxyAddress(port ? `127.0.0.1:${port}` : "");
+      } else {
+        setProxyAddress("");
+      }
+    } catch (e) {
+      setServiceError(errText(e));
+    }
+    setEnabled(await backend.getEnabled().catch(() => false));
+  }, [onRunningChange]);
+
   useEffect(() => {
-    backend.getEnabled().then((v) => {
-      setEnabled(v);
-      setTip(v ? t(L.ENABLE_CLASH_IS_RUNNING) : t(L.ENABLE_CLASH_DESC));
-      onRunningChange(v);
-    });
+    loadService();
     loadSubs();
     return () => clearInterval(pollRef.current);
   }, []);
 
-  const toggle = async (value: boolean) => {
+  /** Run one action at a time; repeated presses while busy are ignored. */
+  const exclusive = async (job: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
-    setEnabled(value);
-    clearInterval(pollRef.current);
-    if (!value) {
-      onRunningChange(false);
-      await backend.setEnabled(false).catch(() => undefined);
-      setTip(t(L.ENABLE_CLASH_DESC));
+    try {
+      await job();
+    } finally {
+      busyRef.current = false;
       setBusy(false);
-      return;
     }
-    setTip(t(L.ENABLE_CLASH_LOADING));
-    backend.setEnabled(true).catch(() => undefined);
-    pollRef.current = setInterval(async () => {
-      const status = String(await backend.getRunningStatus());
-      if (status === "Loading") return;
-      clearInterval(pollRef.current);
-      setBusy(false);
-      if (status === "Success") {
-        setTip(t(L.ENABLE_CLASH_IS_RUNNING));
-        resetSecret();
-        onRunningChange(true);
-        loadSubs();
-      } else {
-        setTip(t(L.ENABLE_CLASH_FAILED));
-        setEnabled(false);
-        onRunningChange(false);
-      }
-    }, 500);
   };
+
+  const installOrUninstall = () =>
+    exclusive(async () => {
+      setServiceError("");
+      const err = service?.installed
+        ? await ApiCallBackend.uninstallService()
+        : await ApiCallBackend.installService();
+      if (err) setServiceError(err);
+      await loadService();
+    });
+
+  const toggle = (value: boolean) =>
+    exclusive(async () => {
+      setEnabled(value);
+      setTip(t(L.ENABLE_CLASH_LOADING));
+      await backend.setEnabled(value).catch(() => undefined);
+      // set_clash_status is synchronous; read the outcome it recorded.
+      const status = String(await backend.getRunningStatus().catch(() => "Failed"));
+      if (status === "Failed") {
+        setTip(t(L.ENABLE_CLASH_FAILED));
+      } else {
+        setTip(t(L.TUN_DESC));
+      }
+      await loadService();
+    });
+
+  const serviceText = !service
+    ? "…"
+    : !service.installed
+    ? t(L.SERVICE_NOT_INSTALLED)
+    : service.active
+    ? t(L.SERVICE_RUNNING)
+    : t(L.SERVICE_STOPPED);
 
   return (
     <PanelSection title={t(L.SERVICE)}>
+      <Field
+        label={t(L.SYSTEM_SERVICE)}
+        description={
+          <span>
+            <span
+              style={{
+                color: service?.active ? "#59bf40" : service?.installed ? "#e8b923" : "#8b929a",
+              }}
+            >
+              {serviceText}
+            </span>
+            {service?.active && proxyAddress && (
+              <>
+                <br />
+                {t(L.SERVICE_DESC, { address: proxyAddress })}
+              </>
+            )}
+            {serviceError && (
+              <>
+                <br />
+                <span style={{ color: "#d94126" }}>{serviceError}</span>
+              </>
+            )}
+          </span>
+        }
+        childrenLayout="inline"
+      >
+        <DialogButton
+          style={{ minWidth: "7em", width: "auto" }}
+          disabled={busy || !service || (!service.installed && subs.length === 0)}
+          onClick={installOrUninstall}
+        >
+          {busy && service ? (
+            <Spinner style={{ width: 14, height: 14 }} />
+          ) : service?.installed ? (
+            t(L.UNINSTALL_SERVICE)
+          ) : (
+            t(L.INSTALL_SERVICE)
+          )}
+        </DialogButton>
+      </Field>
       <PanelSectionRow>
         <ToggleField
           label={t(L.ENABLE_CLASH)}
-          description={tip}
+          description={service && !service.installed ? t(L.INSTALL_SERVICE_FIRST) : tip}
           checked={!!enabled}
-          disabled={busy || enabled === null || (subs.length === 0 && !enabled)}
+          disabled={busy || enabled === null || !service?.installed}
           onChange={toggle}
         />
       </PanelSectionRow>
@@ -146,21 +226,19 @@ const ServiceSection: FC<{ onRunningChange: (running: boolean) => void }> = ({
           strDefaultLabel={t(L.SELECT_SUBSCRIPTION)}
           rgOptions={subs}
           selectedOption={currentSub}
-          disabled={busy || subs.length === 0}
-          onChange={async (opt) => {
-            setBusy(true);
-            setCurrentSub(opt.data);
-            try {
+          disabled={subs.length === 0}
+          onChange={(opt) =>
+            exclusive(async () => {
+              setCurrentSub(opt.data);
               await backend.setSub(opt.data);
-              if (enabled) {
-                await ApiCallBackend.reloadClashConfig();
-                onRunningChange(false);
-                onRunningChange(true);
+              if (service?.installed) {
+                await ApiCallBackend.reloadClashConfig().catch((e) =>
+                  setServiceError(errText(e))
+                );
               }
-            } finally {
-              setBusy(false);
-            }
-          }}
+              await loadService();
+            })
+          }
         />
       </PanelSectionRow>
     </PanelSection>
@@ -320,8 +398,8 @@ const RunningSections: FC<{ generation: number }> = ({ generation }) => {
     }
   }, []);
 
+  // Refresh in place when the core reloads; only the first load shows a spinner.
   useEffect(() => {
-    setReady(null);
     load();
   }, [load, generation]);
 

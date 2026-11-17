@@ -240,9 +240,8 @@ const Content: FC<{}> = ({}) => {
             disabled={isSelectionDisabled}
           />
         </PanelSectionRow>
-        {clashState && (
-          <QuickProxy refreshToken={SelectionTips} />
-        )}
+        {/* The core runs whenever the system service is installed, not only with TUN on. */}
+        <QuickProxy refreshToken={`${clashState}-${SelectionTips}`} />
         <PanelSectionRow>
           <DropdownItem
             // disabled={optionDropdownDisabled}

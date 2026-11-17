@@ -481,7 +481,7 @@ pub async fn reload_clash_config(state: web::Data<AppState>) -> Result<HttpRespo
         clash_state = runtime.clash_state_clone();
     }
 
-    let clash = match clash_state.write() {
+    let mut clash = match clash_state.write() {
         Ok(x) => x,
         Err(e) => {
             log::error!("read clash_state failed: {}", e);
@@ -503,35 +503,9 @@ pub async fn reload_clash_config(state: web::Data<AppState>) -> Result<HttpRespo
         }
     };
 
-    match clash.change_config(
-        settings.skip_proxy,
-        settings.override_dns,
-        settings.allow_remote_access,
-        settings.allow_lan,
-        settings.enhanced_mode,
-        settings.dashboard.clone(),
-    ) {
-        Ok(_) => {}
-        Err(e) => {
-            log::error!("Failed while change clash config.");
-            log::error!("Error Message:{}", e);
-            return Err(actix_web::Error::from(ClashError {
-                Message: e.to_string(),
-                ErrorKind: ClashErrorKind::InnerError,
-            }));
-        }
-    }
-
-    match clash.reload_config().await {
-        Ok(_) => {}
-        Err(e) => {
-            log::error!("Failed while reload clash config.");
-            log::error!("Error Message:{}", e);
-            return Err(actix_web::Error::from(ClashError {
-                Message: e.to_string(),
-                ErrorKind: ClashErrorKind::InnerError,
-            }));
-        }
+    if let Err(e) = clash.apply(&settings) {
+        log::error!("Failed while reload clash config: {}", e);
+        return Err(actix_web::Error::from(e));
     }
 
     let r = GenLinkResponse {
@@ -909,4 +883,79 @@ pub async fn get_local_web_address() -> Result<HttpResponse> {
             return Ok(HttpResponse::Ok().json(r));
         }
     };
+}
+
+
+#[derive(Serialize)]
+pub struct ServiceStatusResponse {
+    status_code: u16,
+    installed: bool,
+    active: bool,
+}
+
+/// GET /service_status: is the always-on core service installed / running.
+pub async fn service_status() -> Result<HttpResponse> {
+    Ok(HttpResponse::Ok().json(ServiceStatusResponse {
+        status_code: 200,
+        installed: crate::control::core_service_installed(),
+        active: crate::control::core_service_active(),
+    }))
+}
+
+fn service_action(
+    state: &web::Data<AppState>,
+    install: bool,
+) -> std::result::Result<(), String> {
+    let runtime = state.runtime.lock().map_err(|e| e.to_string())?;
+    let (runtime_settings, runtime_state, clash_state);
+    unsafe {
+        let runtime = runtime.0.as_ref().unwrap();
+        runtime_settings = runtime.settings_clone();
+        runtime_state = runtime.state_clone();
+        clash_state = runtime.clash_state_clone();
+    }
+    let mut settings = runtime_settings.write().map_err(|e| e.to_string())?;
+    let mut clash = clash_state.write().map_err(|e| e.to_string())?;
+    if install {
+        if settings.current_sub.is_empty() {
+            settings.current_sub = settings
+                .subscriptions
+                .get(0)
+                .map(|s| s.path.clone())
+                .ok_or("no subscription, download one first")?;
+        }
+        clash.install_service(&settings).map_err(|e| e.to_string())?;
+    } else {
+        clash.uninstall_service().map_err(|e| e.to_string())?;
+        settings.enable = false;
+    }
+    if let Ok(mut state) = runtime_state.write() {
+        state.dirty = true;
+    }
+    Ok(())
+}
+
+/// POST /install_service and /uninstall_service.
+pub async fn install_service(state: web::Data<AppState>) -> Result<HttpResponse> {
+    service_response(service_action(&state, true))
+}
+
+pub async fn uninstall_service(state: web::Data<AppState>) -> Result<HttpResponse> {
+    service_response(service_action(&state, false))
+}
+
+fn service_response(result: std::result::Result<(), String>) -> Result<HttpResponse> {
+    match result {
+        Ok(()) => Ok(HttpResponse::Ok().json(GenLinkResponse {
+            message: "ok".to_string(),
+            status_code: 200,
+        })),
+        Err(e) => {
+            log::error!("service action failed: {}", e);
+            Ok(HttpResponse::Ok().json(GenLinkResponse {
+                message: e,
+                status_code: 500,
+            }))
+        }
+    }
 }

@@ -36,7 +36,7 @@
     "PROXIES": "Proxies",
     "CONNECTIONS": "Connections",
     "PROXY_SETTINGS": "Proxies & Nodes",
-    "CLASH_NOT_RUNNING": "Clash is not running. Enable it in the Quick Access Menu first.",
+    "CLASH_NOT_RUNNING": "The mihomo service is not running. Install it under Overview > System Service.",
     "RETRY": "Retry",
     "PROXY_MODE": "Proxy Mode",
     "MODE_RULE": "Rule",
@@ -57,7 +57,7 @@
     "SORT_BY_LATENCY": "Sort by latency",
     "OPEN_WEB_DASHBOARD": "Open Web Dashboard",
     "OPEN_WEB_DASHBOARD_DESC": "Opens the full dashboard in the Steam browser (touchscreen recommended)",
-    "CLASH_STOPPED_HINT": "Clash is off. Turn it on to manage proxies and nodes.",
+    "CLASH_STOPPED_HINT": "Install the system service to manage proxies and nodes.",
     "RESOURCES": "Resources",
     "GEO_DATABASE": "GeoIP / GeoSite Database",
     "GEO_DATABASE_DESC": "Re-download geo data files from geox-url and reload",
@@ -71,5 +71,14 @@
     "UPDATE_FAILED": "Update failed",
     "ALLOW_LAN": "Allow LAN Connections",
     "ALLOW_LAN_DESC": "Let other devices on this network use the proxy",
-    "ALLOW_LAN_ADDRESS": "Proxy address for other devices: {{address}}"
+    "ALLOW_LAN_ADDRESS": "Proxy address for other devices: {{address}}",
+    "SYSTEM_SERVICE": "System Service",
+    "SERVICE_NOT_INSTALLED": "Not installed",
+    "SERVICE_RUNNING": "Running · starts at boot",
+    "SERVICE_STOPPED": "Installed but not running",
+    "SERVICE_DESC": "Runs mihomo all the time; browsers and apps can use {{address}} even when TUN is off",
+    "INSTALL_SERVICE": "Install",
+    "UNINSTALL_SERVICE": "Uninstall",
+    "TUN_DESC": "Transparent proxy for all traffic (TUN)",
+    "INSTALL_SERVICE_FIRST": "Install the system service first"
 }

@@ -38,8 +38,29 @@ pub fn reset_system_network() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Plugin root directory (the one containing `bin/tomoon`).
+///
+/// Resolved once from the executable path instead of the process working
+/// directory: Decky deletes and re-extracts the plugin directory on every
+/// install, which leaves a running process with a cwd that no longer exists.
+pub fn plugin_dir() -> &'static std::path::Path {
+    static DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    DIR.get_or_init(|| {
+        let from_exe = std::env::current_exe().ok().and_then(|exe| {
+            let exe = exe.to_string_lossy().trim_end_matches(" (deleted)").to_string();
+            std::path::Path::new(&exe)
+                .parent()
+                .and_then(|bin| bin.parent())
+                .map(|dir| dir.to_path_buf())
+        });
+        from_exe
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+    })
+}
+
 pub fn get_current_working_dir() -> std::io::Result<std::path::PathBuf> {
-    std::env::current_dir()
+    Ok(plugin_dir().to_path_buf())
 }
 
 pub fn check_yaml(str: &String) -> bool {

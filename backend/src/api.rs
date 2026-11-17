@@ -14,122 +14,86 @@ use usdpl_back::core::serdes::Primitive;
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 pub const NAME: &'static str = env!("CARGO_PKG_NAME");
 
+/// Whether the TUN transparent proxy is on (service running + `enable`).
 pub fn get_clash_status(runtime: &ControlRuntime) -> impl Fn(Vec<Primitive>) -> Vec<Primitive> {
     let runtime_settings = runtime.settings_clone();
     move |_| {
-        let mut lock = match runtime_settings.write() {
-            Ok(x) => x,
+        let enabled = match runtime_settings.read() {
+            Ok(x) => x.enable,
             Err(e) => {
                 log::error!("get_enable failed to acquire settings read lock: {}", e);
-                return vec![];
+                return vec![false.into()];
             }
         };
-        let is_clash_running = helper::is_clash_running();
-        if !is_clash_running && lock.enable
-        //Clash 不在后台但设置里却表示打开
-        {
-            lock.enable = false;
-            log::debug!(
-                "Error occurred while Clash is not running in background but settings defined running."
-            );
-            return vec![is_clash_running.into()];
-        }
-        log::debug!("get_enable() success");
-        log::info!("get clash status with {}", is_clash_running);
-        vec![is_clash_running.into()]
+        let status = enabled && helper::is_clash_running();
+        log::debug!("get clash status with {}", status);
+        vec![status.into()]
     }
 }
 
+/// Turn the TUN transparent proxy on/off in the always-on core. The service
+/// itself is only installed/removed via the install/uninstall endpoints.
 pub fn set_clash_status(runtime: &ControlRuntime) -> impl Fn(Vec<Primitive>) -> Vec<Primitive> {
     let runtime_settings = runtime.settings_clone();
     let runtime_state = runtime.state_clone();
     let clash = runtime.clash_state_clone();
     let running_status = runtime.running_status_clone();
     move |params| {
-        if let Some(Primitive::Bool(enabled)) = params.get(0) {
-            let mut settings = match runtime_settings.write() {
-                Ok(x) => x,
-                Err(e) => {
-                    log::error!("set_enable failed to acquire settings write lock: {}", e);
-                    return vec![false.into()];
-                }
-            };
-            log::info!("set clash status to {}", enabled);
-            if settings.enable != *enabled {
-                let mut clash = match clash.write() {
-                    Ok(x) => x,
-                    Err(e) => {
-                        log::error!("set_enable failed to acquire state write lock: {}", e);
-                        return vec![false.into()];
-                    }
-                };
-                let mut run_status = match running_status.write() {
-                    Ok(x) => x,
-                    Err(e) => {
-                        log::error!("set_enable failed to acquire run status write lock: {}", e);
-                        return vec![false.into()];
-                    }
-                };
-                *run_status = RunningStatus::Loading;
-                // 有些时候第一次没有选择订阅
-                if settings.current_sub == "" {
-                    log::info!("no profile provided, try to use first profile.");
-                    if let Some(sub) = settings.subscriptions.get(0) {
-                        settings.current_sub = sub.path.clone();
-                    } else {
-                        log::error!("no profile provided.");
-                        *run_status = RunningStatus::Failed;
-                        return vec![false.into()];
-                    }
-                }
-                if *enabled {
-                    match clash.run(
-                        &settings.current_sub,
-                        settings.skip_proxy,
-                        settings.override_dns,
-                        settings.allow_remote_access,
-                        settings.allow_lan,
-                        settings.enhanced_mode,
-                        settings.dashboard.clone(),
-                        ) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            log::error!("Run clash error: {}", e);
-                            *run_status = RunningStatus::Failed;
-                            return vec![false.into()];
-                        }
-                    }
-                } else {
-                    // Disable Clash
-                    match clash.stop() {
-                        Ok(_) => {
-                            log::info!("successfully disable clash");
-                        }
-                        Err(e) => {
-                            log::error!("Disable clash error: {}", e);
-                            *run_status = RunningStatus::Failed;
-                            return vec![false.into()];
-                        }
-                    }
-                }
-                settings.enable = *enabled;
-                let mut state = match runtime_state.write() {
-                    Ok(x) => x,
-                    Err(e) => {
-                        log::error!("set_enable failed to acquire state write lock: {}", e);
-                        *run_status = RunningStatus::Failed;
-                        return vec![];
-                    }
-                };
-                state.dirty = true;
-                *run_status = RunningStatus::Success;
-                drop(run_status);
-                log::debug!("set_enable({}) success", enabled);
+        let Some(Primitive::Bool(enabled)) = params.get(0) else {
+            return vec![false.into()];
+        };
+        let enabled = *enabled;
+        log::info!("set clash status (TUN) to {}", enabled);
+        if let Ok(mut s) = running_status.write() {
+            *s = RunningStatus::Loading;
+        }
+        let finish = |ok: bool| {
+            if let Ok(mut s) = running_status.write() {
+                *s = if ok { RunningStatus::Success } else { RunningStatus::Failed };
             }
-            vec![(*enabled).into()]
-        } else {
+        };
+
+        if !crate::control::core_service_installed() {
+            log::error!("system service is not installed");
+            finish(false);
             return vec![false.into()];
         }
+
+        let (Ok(mut settings), Ok(mut clash)) = (runtime_settings.write(), clash.write()) else {
+            log::error!("set_clash_status failed to acquire locks");
+            finish(false);
+            return vec![false.into()];
+        };
+        // 有些时候第一次没有选择订阅
+        if settings.current_sub.is_empty() {
+            match settings.subscriptions.get(0) {
+                Some(sub) => settings.current_sub = sub.path.clone(),
+                None => {
+                    log::error!("no profile provided.");
+                    finish(false);
+                    return vec![false.into()];
+                }
+            }
+        }
+
+        let previous = settings.enable;
+        settings.enable = enabled;
+        if let Err(e) = clash.apply(&settings) {
+            log::error!("Apply clash config error: {}", e);
+            settings.enable = previous;
+            finish(false);
+            return vec![false.into()];
+        }
+        if !enabled {
+            if let Err(e) = helper::reset_system_network() {
+                log::error!("reset network error: {}", e);
+            }
+        }
+        if let Ok(mut state) = runtime_state.write() {
+            state.dirty = true;
+        }
+        finish(true);
+        vec![enabled.into()]
     }
 }
 
